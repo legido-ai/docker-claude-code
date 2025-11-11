@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  claude-code:
+    build: .
+    container_name: claude-code
+    restart: unless-stopped
+    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    environment:
+      - TZ=${TZ:-UTC}
+      - CONTAINER_NAME=${CONTAINER_NAME:-claude-code}
+    volumes:
+      - ./projects:/projects
+      - ~/.claude:/home/node/.claude
+      - /var/run/docker.sock:/var/run/docker.sock
+      - commandhistory:/commandhistory
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    networks:
+      - claude-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Claude Code container is running')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  claude-network:
+    driver: bridge
+
+volumes:
+  commandhistory:
+    driver: local
