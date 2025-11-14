@@ -1,38 +1,36 @@
-version: '3.8'
+#networks:
+#  network-ollama:
+#    external: true
 
 services:
   claude-code:
-    build: .
-    container_name: claude-code
-    restart: unless-stopped
-    user: "${DOCKER_UID:-1000}:${DOCKER_GID:-1000}"
+    build:
+      args:
+        # Output of command: getent group docker | cut -d: -f3
+        DOCKER_GID: ${DOCKER_GID:-998}
+      context: .
+    container_name: ${CONTAINER_NAME:-claude-code}
     environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - GITHUB_APP_ID=${GITHUB_APP_ID}
+      - GITHUB_INSTALLATION_ID=${GITHUB_INSTALLATION_ID}
+      - GITHUB_PRIVATE_KEY=${GITHUB_PRIVATE_KEY}
+#      - OLLAMA_HOST=${OLLAMA_HOST}
+#      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - SSH_PRIVATE_KEY=${SSH_PRIVATE_KEY}
       - TZ=${TZ:-UTC}
-      - CONTAINER_NAME=${CONTAINER_NAME:-claude-code}
-    volumes:
-      - ./projects:/projects
-      - ~/.claude:/home/node/.claude
-      - /var/run/docker.sock:/var/run/docker.sock
-      - commandhistory:/commandhistory
-    ports:
-      - "${PORT:-8080}:8080"
-    env_file:
-      - .env
-    stdin_open: true
-    tty: true
-    networks:
-      - claude-network
     healthcheck:
       test: ["CMD", "node", "-e", "console.log('Claude Code container is running')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-networks:
-  claude-network:
-    driver: bridge
-
-volumes:
-  commandhistory:
-    driver: local
+    hostname: claude-code
+#    networks:
+#      - network-ollama
+    volumes:
+      - ${VOLUME_WORKSPACE:-./workspace}:/workspace
+      - ${VOLUME_CONFIG:-./config}:/home/node/.claude
+      - /var/run/docker.sock:/var/run/docker.sock
