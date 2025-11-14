@@ -41,7 +41,7 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 
 USER node
 
-WORKDIR /projects
+WORKDIR /workspace
 
 COPY --chown=node:node entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
