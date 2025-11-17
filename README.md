@@ -44,7 +44,7 @@ Claude Code is an advanced AI coding assistant designed to enhance developer pro
 # Pull and run the latest image
 docker run -it --rm \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $HOME/.claude:/home/node/.claude \
+  -v $HOME/.claude:/home/node \
   -v $PWD:/projects \
   --name claude-code \
   ghcr.io/legido-ai-workspace/claude-code:latest
@@ -103,7 +103,7 @@ docker pull ghcr.io/legido-ai-workspace/claude-code:latest
 docker run -it --rm \
   --name claude-code-dev \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $HOME/.claude:/home/node/.claude \
+  -v $HOME/.claude:/home/node \
   -v $PWD:/projects \
   ghcr.io/legido-ai-workspace/claude-code:latest \
   bash
@@ -116,7 +116,7 @@ docker run -d \
   --name claude-code-prod \
   --restart unless-stopped \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $HOME/.claude:/home/node/.claude \
+  -v $HOME/.claude:/home/node \
   -v $HOME/projects:/projects \
   --env-file .env \
   ghcr.io/legido-ai-workspace/claude-code:latest
@@ -187,7 +187,7 @@ docker run -it --rm \
   --name claude-dev \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $PWD:/projects \
-  -v $HOME/.claude:/home/node/.claude \
+  -v $HOME/.claude:/home/node \
   ghcr.io/legido-ai-workspace/claude-code:latest bash
 
 # Inside the container
@@ -206,7 +206,7 @@ docker run -d \
   --cpus=2 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /opt/projects:/projects:ro \
-  -v claude-data:/home/node/.claude \
+  -v claude-data:/home/node \
   --env-file production.env \
   ghcr.io/legido-ai-workspace/claude-code:latest
 
@@ -232,6 +232,83 @@ docker-compose up -d                # Orchestrate services
 docker system prune -f              # Clean up resources
 ```
 
+## 🔌 MCP Server Configuration
+
+Claude Code supports MCP (Model Context Protocol) servers to extend its capabilities. MCP servers can provide additional context, tools, and integrations.
+
+### Adding MCP Servers
+
+MCP servers can be added manually using the `claude mcp add-json` command. Configuration persists across container restarts and recreations when using proper volume mounting.
+
+#### Prerequisites
+
+Ensure the container mounts `/home/node` (not just `/home/node/.claude`) to persist the main configuration file:
+
+```yaml
+volumes:
+  - ${VOLUME_CONFIG:-./config}:/home/node  # ✓ Correct - persists .claude.json
+  - /var/run/docker.sock:/var/run/docker.sock
+```
+
+#### Example: GitHub MCP Server
+
+Add a GitHub MCP server using GitHub App authentication:
+
+```bash
+# Using docker exec
+docker exec claude-code claude mcp add-json github '{"command":"docker","args":["run","-i","--rm","-e","GITHUB_APP_ID=$GITHUB_APP_ID","-e","GITHUB_PRIVATE_KEY=$GITHUB_PRIVATE_KEY","-e","GITHUB_INSTALLATION_ID=$GITHUB_INSTALLATION_ID","ghcr.io/legido-ai/mcp-github-app-auth:latest"],"trust":true,"timeout":30000}'
+
+# Using docker-compose
+docker-compose exec claude-code claude mcp add-json github '{"command":"docker","args":["run","-i","--rm","-e","GITHUB_APP_ID=$GITHUB_APP_ID","-e","GITHUB_PRIVATE_KEY=$GITHUB_PRIVATE_KEY","-e","GITHUB_INSTALLATION_ID=$GITHUB_INSTALLATION_ID","ghcr.io/legido-ai/mcp-github-app-auth:latest"],"trust":true,"timeout":30000}'
+```
+
+#### Verify Configuration
+
+```bash
+# List configured MCP servers
+docker exec claude-code claude mcp list
+
+# Expected output:
+# Checking MCP server health...
+# github: docker run -i --rm -e GITHUB_APP_ID=... - ✓ Connected
+```
+
+#### Configuration Persistence
+
+MCP configuration is stored in `/home/node/.claude.json`. With proper volume mounting:
+
+✅ **Persists** across container stops/starts
+✅ **Persists** across container deletions/recreations
+✅ **No reconfiguration needed** after container updates
+
+#### Other MCP Server Examples
+
+```bash
+# Add context7 MCP server
+docker exec claude-code claude mcp add-json context7 '{"command":"npx","args":["-y","@upstash/context7-mcp"],"trust":false,"timeout":30000}'
+
+# Add custom stdio MCP server
+docker exec claude-code claude mcp add --transport stdio my-server -- npx -y my-mcp-server
+
+# Remove an MCP server
+docker exec claude-code claude mcp remove github
+
+# Get details about a server
+docker exec claude-code claude mcp get github
+```
+
+### Troubleshooting MCP
+
+**Configuration not persisting?**
+- Ensure volume mounts `/home/node` (not `/home/node/.claude`)
+- Check that `${VOLUME_CONFIG}` directory exists on host
+- Verify file ownership matches container user
+
+**MCP server connection fails?**
+- Check environment variables are passed to container
+- Verify Docker socket is mounted: `-v /var/run/docker.sock:/var/run/docker.sock`
+- Ensure MCP server image is accessible
+
 ## 🔄 Maintenance & Updates
 
 ### Update to Latest Version
@@ -248,7 +325,7 @@ docker run -d \
   --name claude-code \
   --restart unless-stopped \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $HOME/.claude:/home/node/.claude \
+  -v $HOME/.claude:/home/node \
   -v $PWD:/projects \
   ghcr.io/legido-ai-workspace/claude-code:latest
 ```
@@ -289,7 +366,7 @@ docker run --rm \
 | Volume Path | Purpose | Recommended Local Path | Notes |
 |-------------|---------|----------------------|-------|
 | `/projects` | 📁 **Project Files** | `$PWD` or `$HOME/projects` | Your source code and workspaces |
-| `/home/node/.claude` | ⚙️ **Claude Configuration** | `$HOME/.claude` | Settings, cache, and configurations |
+| `/home/node` | ⚙️ **Claude Configuration** | `$HOME/.claude` | Settings, cache, configurations, and MCP servers |
 | `/var/run/docker.sock` | 🐳 **Docker Socket** | `/var/run/docker.sock` | Docker-in-Docker functionality |
 | `/tmp` | 🗂️ **Temporary Files** | `tmpfs` | Fast temporary storage |
 
@@ -303,7 +380,7 @@ docker volume create claude-cache
 # Use named volumes in production
 docker run -d \
   --name claude-prod \
-  -v claude-config:/home/node/.claude \
+  -v claude-config:/home/node \
   -v claude-projects:/projects \
   -v claude-cache:/tmp \
   -v /var/run/docker.sock:/var/run/docker.sock \
