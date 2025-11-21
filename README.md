@@ -8,14 +8,23 @@
 
 Claude Code is an advanced AI coding assistant designed to enhance developer productivity through intelligent code generation, completion, and analysis. This Docker image provides a **secure**, **isolated**, and **production-ready** environment to run Claude Code with all necessary dependencies pre-configured.
 
-## 🎯 Why Use This Container?
+## 📑 Table of Contents
 
-- **🔒 Security First**: Non-root user execution with minimal attack surface
-- **📦 Zero Configuration**: Pre-installed dependencies and optimized setup
-- **🚀 Production Ready**: Multi-stage builds for optimal performance
-- **🔄 CI/CD Integration**: Automated builds and GitHub Actions support
-- **🐋 Docker-in-Docker**: Full containerization capabilities included
-- **⚡ Performance Optimized**: Efficient layer caching and size optimization
+- [✨ Key Features](#-key-features)
+- [🚀 Quick Start](#-quick-start)
+  - [Prerequisites](#prerequisites)
+  - [⚡ One-Command Setup](#-one-command-setup)
+- [⚙️ Advanced Configuration](#️-advanced-configuration)
+- [🚀 Deployment Options](#-deployment-options)
+  - [Option 1: 📦 Pre-built Image (Recommended)](#option-1--pre-built-image-recommended)
+  - [Option 2: 🔨 Custom Build (Advanced Users)](#option-2--custom-build-advanced-users)
+- [💡 Usage Examples](#-usage-examples)
+- [🔌 MCP Server Configuration](#-mcp-server-configuration)
+- [🔄 Maintenance & Updates](#-maintenance--updates)
+- [📂 Volume Management](#-volume-management)
+- [🛡️ Security Features](#️-security-features)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [📄 License](#-license)
 
 ## ✨ Key Features
 
@@ -157,23 +166,6 @@ docker build \
 # PowerShell build command
 $env:DOCKER_GID="998"
 docker build --build-arg DOCKER_GID=$env:DOCKER_GID -t claude-code:local .
-```
-
-#### ⚡ Performance Optimizations
-
-Our multi-stage build delivers:
-
-| Optimization | Impact | Benefit |
-|-------------|--------|---------|
-| 📦 **Layer Caching** | ~70% faster rebuilds | Efficient development |
-| 🎯 **Minimal Runtime** | ~60% smaller images | Faster deployments |
-| 🔒 **Security Hardening** | Reduced attack surface | Production safety |
-| 🚀 **Dependency Management** | Optimized package selection | Better performance |
-
-```dockerfile
-# Build stages overview:
-# Stage 1: Dependencies and build tools
-# Stage 2: Runtime environment (final)
 ```
 
 ## 💡 Usage Examples
