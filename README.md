@@ -250,14 +250,14 @@ Add a GitHub MCP server using GitHub App authentication.
 
 ```bash
 # Recommended: Using the setup script (handles environment variable expansion correctly)
-docker exec claude-code bash /path/to/setup-mcp-github.sh
+docker exec claude-code bash /path/to/utils/setup-mcp-github.sh
 
 # Or copy the script into the container first
-docker cp setup-mcp-github.sh claude-code:/tmp/
+docker cp utils/setup-mcp-github.sh claude-code:/tmp/
 docker exec claude-code bash /tmp/setup-mcp-github.sh
 ```
 
-The setup script (`setup-mcp-github.sh`) is included in this repository and automatically:
+The setup script (`utils/setup-mcp-github.sh`) is included in this repository and automatically:
 - Validates required environment variables are set
 - Expands environment variable values into the configuration
 - Creates a backup of your existing configuration
@@ -315,7 +315,7 @@ docker exec claude-code claude mcp get github
 **"Could not parse the provided public key" error?**
 This error occurs when environment variables in the MCP configuration are not properly expanded:
 - **Problem**: Using `$GITHUB_PRIVATE_KEY` in the configuration instead of the actual private key value
-- **Solution**: Use the `setup-mcp-github.sh` script which properly expands environment variables
+- **Solution**: Use the `utils/setup-mcp-github.sh` script which properly expands environment variables
 - **Root cause**: The `claude mcp add-json` command treats environment variable references as literal strings
 - To verify: Run `docker exec claude-code cat /home/node/.claude.json` and check if you see `$GITHUB_APP_ID` or the actual value like `1957234`
 
