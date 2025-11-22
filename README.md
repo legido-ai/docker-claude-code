@@ -265,6 +265,49 @@ The setup script (`utils/setup-mcp-github.sh`) is included in this repository an
 
 **Why the script is needed**: The `claude mcp add-json` command does not expand environment variables like `$GITHUB_APP_ID`. If you try to use variable names directly, they will be passed as literal strings (e.g., `$GITHUB_APP_ID` instead of `1957234`), causing authentication to fail with errors like "Could not parse the provided public key."
 
+#### Example: n8n MCP Server
+
+Add an n8n MCP server to enable Claude to interact with n8n workflows.
+
+**Setup Requirements:**
+- n8n instance with API access enabled
+- n8n API key (generated in n8n Settings > API > API Keys)
+- n8n API URL (e.g., `http://localhost:5678/api/v1`)
+
+**Configuration Steps:**
+
+1. Set required environment variables in your `.env` file:
+```env
+N8N_API_URL=http://localhost:5678/api/v1
+N8N_API_KEY=n8n_api_your_key_here
+N8N_WEBHOOK_USERNAME=username  # Optional
+N8N_WEBHOOK_PASSWORD=password  # Optional
+DEBUG=false  # Optional
+```
+
+2. Use the setup script (recommended method):
+```bash
+# Copy the script into the container
+docker cp utils/setup-mcp-n8n.sh claude-code:/tmp/
+
+# Run the setup script
+docker exec claude-code bash /tmp/setup-mcp-n8n.sh
+```
+
+The setup script (`utils/setup-mcp-n8n.sh`) automatically:
+- Validates required environment variables (N8N_API_URL, N8N_API_KEY)
+- Expands environment variable values into the configuration
+- Handles optional webhook authentication credentials
+- Creates a backup of your existing configuration
+- Updates the MCP server configuration with proper Docker arguments
+
+**Capabilities:**
+Once configured, Claude can:
+- List and search n8n workflows
+- Execute workflows with parameters
+- Retrieve workflow execution results
+- Manage workflow credentials (with proper permissions)
+
 #### Verify Configuration
 
 ```bash
@@ -312,12 +355,20 @@ docker exec claude-code claude mcp get github
 - Verify Docker socket is mounted: `-v /var/run/docker.sock:/var/run/docker.sock`
 - Ensure MCP server image is accessible
 
-**"Could not parse the provided public key" error?**
+**"Could not parse the provided public key" error (GitHub MCP)?**
 This error occurs when environment variables in the MCP configuration are not properly expanded:
 - **Problem**: Using `$GITHUB_PRIVATE_KEY` in the configuration instead of the actual private key value
 - **Solution**: Use the `utils/setup-mcp-github.sh` script which properly expands environment variables
 - **Root cause**: The `claude mcp add-json` command treats environment variable references as literal strings
 - To verify: Run `docker exec claude-code cat /home/node/.claude.json` and check if you see `$GITHUB_APP_ID` or the actual value like `1957234`
+
+**n8n MCP connection fails?**
+- Verify n8n API URL is accessible from the container (include `/api/v1` at the end)
+- Check n8n API key is valid and has proper permissions
+- Ensure Docker socket is mounted: `-v /var/run/docker.sock:/var/run/docker.sock`
+- Verify environment variables are set in the container
+- Use the setup script: `docker exec claude-code bash /tmp/setup-mcp-n8n.sh`
+- Check n8n instance is running and API is enabled
 
 ## 🔄 Maintenance & Updates
 
