@@ -145,13 +145,15 @@ watch_and_expand() {
 
             # If modification time changed, expand variables
             if [ -n "$current_mtime" ] && [ "$current_mtime" != "$last_mtime" ]; then
-                # Skip the first check if we already have a last_mtime from initialization
-                if [ "$first_run" = true ]; then
+                # Don't expand on the very first run if we initialized from existing file
+                # (we already did that at startup), but DO expand on any subsequent changes
+                if [ "$first_run" = true ] && [ -n "$last_mtime" ]; then
                     first_run=false
                 else
                     echo ""
                     echo "=== Detected change in .claude.json ==="
                     expand_env_vars
+                    first_run=false
                 fi
                 last_mtime="$current_mtime"
             fi
