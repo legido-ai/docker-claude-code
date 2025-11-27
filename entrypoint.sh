@@ -19,23 +19,21 @@ process_env_vars() {
 
     # Check if config file exists
     if [ ! -f "$config_file" ]; then
-        echo "Configuration file not found: $config_file"
         return 0
     fi
 
     # Check if there are any environment variable references (pattern: $VAR_NAME)
     if ! grep -q '\$[A-Za-z_][A-Za-z0-9_]*' "$config_file"; then
-        echo "No environment variable references found in $config_file"
         return 0
     fi
 
-    echo "Found environment variable references in $config_file"
+    echo "[ENV-EXPAND] Found environment variable references in $config_file"
 
     # Create backup with timestamp
     timestamp=$(date +%s)
     backup_file="${config_file}.${timestamp}"
     cp "$config_file" "$backup_file"
-    echo "Created backup: $backup_file"
+    echo "[ENV-EXPAND] Created backup: $backup_file"
 
     # Get all unique variable names from the config file
     var_names=$(grep -o '\$[A-Za-z_][A-Za-z0-9_]*' "$config_file" | sed 's/^\$//' | sort -u)
@@ -53,22 +51,50 @@ process_env_vars() {
             # Perform the replacement
             sed -i "s/\$$var_name/$escaped_value/g" "$config_file"
 
-            echo "Replaced \$$var_name with actual value"
+            echo "[ENV-EXPAND] Replaced \$$var_name with actual value"
         else
-            echo "Warning: \$$var_name not found in environment, keeping as-is"
+            echo "[ENV-EXPAND] Warning: \$$var_name not found in environment, keeping as-is"
         fi
     done
 
-    echo ""
-    echo "=========================================="
-    echo "Configuration file has been updated: $config_file"
-    echo "A restart is required to pick up the changes"
-    echo "=========================================="
+    echo "[ENV-EXPAND] Configuration file has been updated: $config_file"
     echo ""
 }
 
-# Process environment variables in the configuration file
+# Background watcher function that monitors the config file for changes
+watch_and_expand() {
+    local config_file="$1"
+    local last_mtime=""
+
+    echo "[ENV-EXPAND] Starting background watcher for $config_file"
+
+    while true; do
+        sleep 2
+
+        # Check if file exists and get its modification time
+        if [ -f "$config_file" ]; then
+            current_mtime=$(stat -c %Y "$config_file" 2>/dev/null || stat -f %m "$config_file" 2>/dev/null || echo "0")
+
+            # If modification time changed, process the file
+            if [ "$current_mtime" != "$last_mtime" ]; then
+                last_mtime="$current_mtime"
+
+                # Check if there are environment variables to expand
+                if grep -q '\$[A-Za-z_][A-Za-z0-9_]*' "$config_file"; then
+                    echo "[ENV-EXPAND] Configuration file changed, processing environment variables..."
+                    process_env_vars "$config_file"
+                fi
+            fi
+        fi
+    done
+}
+
+# Process environment variables in the configuration file on startup
+echo "[ENV-EXPAND] Checking configuration file on startup..."
 process_env_vars "$CONFIG_FILE"
+
+# Start the background watcher in the background
+watch_and_expand "$CONFIG_FILE" &
 
 # Execute the main command (passed as arguments to this script)
 exec "$@"
