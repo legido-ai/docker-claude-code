@@ -19,11 +19,12 @@ bash \
 zsh \
 openssh \
 shadow \
+jq \
 && rm -rf /var/cache/apk/*
 
-# Add node user to docker group
-RUN groupadd -g ${DOCKER_GID:-999} docker \
-    && usermod -aG docker node
+# Add node user to docker group, create if it doesn't exist
+RUN if ! getent group docker > /dev/null 2>&1; then groupadd -g ${DOCKER_GID:-999} docker; fi \
+    && usermod -aG docker node || true
 
 #Install claude-code globally
 RUN npm install -g @anthropic-ai/claude-code@latest typescript tsx nodemon npm-check-updates \

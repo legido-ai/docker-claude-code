@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CONFIG_FILE="/home/node/.claude.json"
+# CONFIG_FILE="/home/node/.claude.json"
 
 # Function to escape value for JSON and sed replacement
 escape_for_json_and_sed() {
@@ -80,7 +80,37 @@ process_env_vars() {
 }
 
 # Process environment variables once at boot time
-process_env_vars "$CONFIG_FILE"
+# process_env_vars "$CONFIG_FILE"
 
-# Execute the main command (passed as arguments to this script)
+# Process environment variables or configuration files with jq at startup
+# For example, if there are JSON configuration files, we could validate or process them
+
+# Example: Process any JSON configuration in the environment or from a file
+# This is functionality for the GitHub issue - validating JSON
+if [ -f "/workspace/config.json" ]; then
+  echo "Validating config.json with jq..."
+  cat /workspace/config.json | jq '.' > /dev/null
+  if [ $? -eq 0 ]; then
+    echo "config.json is valid JSON"
+  else
+    echo "config.json has JSON syntax errors"
+    exit 1
+  fi
+fi
+
+# Process environment variables that might be JSON strings
+if [ ! -z "$JSON_CONFIG" ]; then
+  echo "Processing JSON_CONFIG environment variable..."
+  echo "$JSON_CONFIG" | jq '.' > /dev/null
+  if [ $? -eq 0 ]; then
+    echo "JSON_CONFIG is valid"
+    # Optionally save to a file for the main process to use
+    echo "$JSON_CONFIG" | jq '.' > /workspace/processed_config.json
+  else
+    echo "JSON_CONFIG has JSON syntax errors"
+    exit 1
+  fi
+fi
+
+# Execute the container's original command (starts Qwen Code)
 exec "$@"
