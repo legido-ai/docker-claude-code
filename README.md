@@ -600,12 +600,55 @@ docker run --cpus="2.0" ghcr.io/legido-ai-workspace/claude-code:latest
 docker run --cpu-shares 512 ghcr.io/legido-ai-workspace/claude-code:latest
 ```
 
+#### ❌ Network Timeouts / Connection Issues
+
+```bash
+# Problem: Commands timeout after 30-40 seconds
+Symptom: claude commands hang, /bug times out, but /doctor works
+
+# Quick workaround: Use host network mode
+# Add to docker-compose.yml:
+services:
+  claude-code:
+    network_mode: host  # ⚠️ Temporary workaround
+```
+
+**For comprehensive network troubleshooting:**
+
+See **[TROUBLESHOOTING-NETWORK.md](./TROUBLESHOOTING-NETWORK.md)** for:
+- 🔍 Comprehensive diagnostic script (`diagnose-network.sh`)
+- 📋 Step-by-step diagnosis process
+- 🛠️ Common issues and solutions:
+  - DNS resolution failures
+  - Firewall blocking container traffic
+  - IP forwarding disabled
+  - MTU mismatches
+  - Proxy configuration issues
+  - Docker bridge network corruption
+- 📊 Comparing working vs broken hosts
+- ⚙️ Understanding `network_mode: host` pros and cons
+
+**Quick diagnosis:**
+```bash
+# Run diagnostic script
+./diagnose-network.sh > network-diagnostic.log 2>&1
+
+# Test basic connectivity from container
+docker run --rm alpine:latest wget -O- --timeout=10 https://api.anthropic.com
+
+# Test with host network
+docker run --rm --network host alpine:latest wget -O- --timeout=10 https://api.anthropic.com
+```
+
+If host network works but bridge network doesn't, you have a Docker networking configuration issue. See the full troubleshooting guide for solutions.
+
 ### Getting Help
 
 - 📚 **Documentation**: [Project Wiki](https://github.com/legido-ai-workspace/docker-claude-code/wiki)
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/legido-ai-workspace/docker-claude-code/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/legido-ai-workspace/docker-claude-code/discussions)
 - 📧 **Email Support**: [support@legido.com](mailto:support@legido.com)
+- 🌐 **Network Issues**: See [TROUBLESHOOTING-NETWORK.md](./TROUBLESHOOTING-NETWORK.md)
 
 ## 📄 License
 
