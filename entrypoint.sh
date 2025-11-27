@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# CONFIG_FILE="/home/node/.claude.json"
+CONFIG_FILE="/home/node/.claude.json"
 
 # Function to escape value for JSON and sed replacement
 escape_for_json_and_sed() {
@@ -80,7 +80,7 @@ process_env_vars() {
 }
 
 # Process environment variables once at boot time
-# process_env_vars "$CONFIG_FILE"
+process_env_vars "$CONFIG_FILE"
 
 # Process environment variables or configuration files with jq at startup
 # For example, if there are JSON configuration files, we could validate or process them
