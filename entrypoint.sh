@@ -3,6 +3,16 @@ set -e
 
 CONFIG_FILE="/home/node/.claude.json"
 
+# Function to escape string for sed replacement (handles multiline)
+escape_for_sed() {
+    # Read the entire input preserving newlines
+    local input
+    input=$(cat)
+    # Escape backslashes first, then forward slashes and ampersands
+    # Then escape newlines for sed
+    printf '%s' "$input" | sed -e 's/[\/&]/\\&/g' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/\\n/g'
+}
+
 # Function to process environment variable replacements
 process_env_vars() {
     local config_file="$1"
@@ -13,63 +23,48 @@ process_env_vars() {
         return 0
     fi
 
-    # Get content of configuration file
-    config_content=$(cat "$config_file")
-
     # Check if there are any environment variable references (pattern: $VAR_NAME)
-    if ! echo "$config_content" | grep -q '\$[A-Za-z_][A-Za-z0-9_]*'; then
+    if ! grep -q '\$[A-Za-z_][A-Za-z0-9_]*' "$config_file"; then
         echo "No environment variable references found in $config_file"
         return 0
     fi
 
-    # Track if we need to make replacements
-    needs_replacement=false
+    echo "Found environment variable references in $config_file"
 
-    # Get current environment variables
-    while IFS='=' read -r env_var env_value; do
-        # Skip if env_var is empty
-        [ -z "$env_var" ] && continue
+    # Create backup with timestamp
+    timestamp=$(date +%s)
+    backup_file="${config_file}.${timestamp}"
+    cp "$config_file" "$backup_file"
+    echo "Created backup: $backup_file"
 
-        # Check if this environment variable is referenced in the config file
-        if echo "$config_content" | grep -q "\$$env_var"; then
-            needs_replacement=true
-            break
+    # Get all unique variable names from the config file
+    var_names=$(grep -o '\$[A-Za-z_][A-Za-z0-9_]*' "$config_file" | sed 's/^\$//' | sort -u)
+
+    # Process replacements
+    for var_name in $var_names; do
+        # Check if the environment variable exists using indirect expansion
+        if [ -n "${!var_name+x}" ]; then
+            # Get the value
+            var_value="${!var_name}"
+
+            # Escape the value for sed
+            escaped_value=$(printf '%s' "$var_value" | escape_for_sed)
+
+            # Perform the replacement
+            sed -i "s/\$$var_name/$escaped_value/g" "$config_file"
+
+            echo "Replaced \$$var_name with actual value"
+        else
+            echo "Warning: \$$var_name not found in environment, keeping as-is"
         fi
-    done < <(env)
+    done
 
-    # If replacements are needed, perform them
-    if [ "$needs_replacement" = true ]; then
-        # Create backup with timestamp
-        timestamp=$(date +%s)
-        backup_file="${config_file}.${timestamp}"
-        cp "$config_file" "$backup_file"
-        echo "Created backup: $backup_file"
-
-        # Perform replacements
-        new_content="$config_content"
-        while IFS='=' read -r env_var env_value; do
-            # Skip if env_var is empty
-            [ -z "$env_var" ] && continue
-
-            # Check if this environment variable is referenced in the config file
-            if echo "$new_content" | grep -q "\$$env_var"; then
-                # Escape special characters in the replacement value for sed
-                escaped_value=$(echo "$env_value" | sed 's/[&/\]/\\&/g')
-                new_content=$(echo "$new_content" | sed "s/\$$env_var/$escaped_value/g")
-                echo "Replaced \$$env_var with actual value"
-            fi
-        done < <(env)
-
-        # Write the modified content back to the config file
-        echo "$new_content" > "$config_file"
-
-        echo ""
-        echo "=========================================="
-        echo "Configuration file has been updated: $config_file"
-        echo "A restart is required to pick up the changes"
-        echo "=========================================="
-        echo ""
-    fi
+    echo ""
+    echo "=========================================="
+    echo "Configuration file has been updated: $config_file"
+    echo "A restart is required to pick up the changes"
+    echo "=========================================="
+    echo ""
 }
 
 # Process environment variables in the configuration file
