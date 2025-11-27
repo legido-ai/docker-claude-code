@@ -275,7 +275,25 @@ Add an n8n MCP server to enable Claude to interact with n8n workflows.
 
 **Configuration Steps:**
 
-1. Set required environment variables in your `.env` file:
+**Option 1: Using automatic environment variable substitution**
+
+1. Add the MCP configuration with environment variable references:
+```bash
+docker exec claude-code claude mcp add-json n8n '{"command":"docker","args":["run","-i","--rm","-e","N8N_API_URL=$N8N_API_URL","-e","N8N_API_KEY=$N8N_API_KEY","your-n8n-mcp-image:latest"],"trust":true,"timeout":30000}'
+```
+
+2. Add the environment variables to your docker-compose.yml:
+```yaml
+environment:
+  N8N_API_URL: ${N8N_API_URL}
+  N8N_API_KEY: ${N8N_API_KEY}
+  # Optional:
+  # N8N_WEBHOOK_USERNAME: ${N8N_WEBHOOK_USERNAME}
+  # N8N_WEBHOOK_PASSWORD: ${N8N_WEBHOOK_PASSWORD}
+  # DEBUG: ${DEBUG}
+```
+
+3. Set the variables in your `.env` file:
 ```env
 N8N_API_URL=http://localhost:5678/api/v1
 N8N_API_KEY=n8n_api_your_key_here
@@ -284,18 +302,24 @@ N8N_WEBHOOK_PASSWORD=password  # Optional
 DEBUG=false  # Optional
 ```
 
-2. Use the setup script (recommended method):
+4. Restart the container to apply environment variable substitution:
+```bash
+docker restart claude-code
+```
+
+**Option 2: Using the setup script (no restart required)**
+
 ```bash
 # Copy the script into the container
 docker cp utils/setup-mcp-n8n.sh claude-code:/tmp/
 
-# Run the setup script
+# Run the setup script (validates and expands variables immediately)
 docker exec claude-code bash /tmp/setup-mcp-n8n.sh
 ```
 
 The setup script (`utils/setup-mcp-n8n.sh`) automatically:
 - Validates required environment variables (N8N_API_URL, N8N_API_KEY)
-- Expands environment variable values into the configuration
+- Expands environment variable values into the configuration immediately
 - Handles optional webhook authentication credentials
 - Creates a backup of your existing configuration
 - Updates the MCP server configuration with proper Docker arguments
