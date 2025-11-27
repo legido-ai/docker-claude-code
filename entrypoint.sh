@@ -3,14 +3,31 @@ set -e
 
 CONFIG_FILE="/home/node/.claude.json"
 
-# Function to escape string for sed replacement (handles multiline)
-escape_for_sed() {
-    # Read the entire input preserving newlines
-    local input
-    input=$(cat)
-    # Escape backslashes first, then forward slashes and ampersands
-    # Then escape newlines for sed
-    printf '%s' "$input" | sed -e 's/[\/&]/\\&/g' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/\\n/g'
+# Function to escape value for JSON and sed replacement
+escape_for_json_and_sed() {
+    local input="$1"
+    local output=""
+
+    # We need to escape for BOTH JSON and sed replacement string
+    # For JSON: \ -> \\, " -> \", newline -> \n
+    # For sed replacement: \ -> \\, & -> \&, / -> \/
+    # Combined: we need \\\\ for each backslash in the final sed command
+
+    # First escape backslashes for JSON (\ -> \\)
+    input="${input//\\/\\\\}"
+
+    # Then escape quotes for JSON (" -> \")
+    input="${input//\"/\\\"}"
+
+    # Now convert newlines to \n for JSON, but we need to escape the backslash again for sed
+    # So newline becomes \\n (which sed will turn into \n in the file)
+    output=$(printf '%s' "$input" | awk '{printf "%s\\\\n", $0} END {if (NR > 0) printf ""}' | sed '$ s/\\\\n$//')
+
+    # Finally escape & and / for sed
+    output="${output//&/\\&}"
+    output="${output//\//\\/}"
+
+    printf '%s' "$output"
 }
 
 # Function to process environment variable replacements
@@ -47,8 +64,8 @@ process_env_vars() {
             # Get the value
             var_value="${!var_name}"
 
-            # Escape the value for sed
-            escaped_value=$(printf '%s' "$var_value" | escape_for_sed)
+            # Escape for both JSON and sed replacement
+            escaped_value=$(escape_for_json_and_sed "$var_value")
 
             # Perform the replacement
             sed -i "s/\$$var_name/$escaped_value/g" "$config_file"
