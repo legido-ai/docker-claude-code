@@ -1,174 +1,79 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
-# Function to expand environment variables in .claude.json
-expand_env_vars() {
-    local config_file="/home/node/.claude.json"
+CONFIG_FILE="/home/node/.claude.json"
 
-    echo "=== Environment Variable Expansion ==="
-    echo "Checking for config file at: $config_file"
+# Function to process environment variable replacements
+process_env_vars() {
+    local config_file="$1"
 
-    # Check if .claude.json exists
+    # Check if config file exists
     if [ ! -f "$config_file" ]; then
-        echo "No .claude.json found, skipping environment variable expansion"
-        echo "Note: File will be created by Claude Code on first run"
+        echo "Configuration file not found: $config_file"
         return 0
     fi
 
-    echo "✓ Config file found"
+    # Get content of configuration file
+    config_content=$(cat "$config_file")
 
-    # Check if Python is available for JSON processing
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "Warning: python3 not found, skipping environment variable expansion"
+    # Check if there are any environment variable references (pattern: $VAR_NAME)
+    if ! echo "$config_content" | grep -q '\$[A-Za-z_][A-Za-z0-9_]*'; then
+        echo "No environment variable references found in $config_file"
         return 0
     fi
 
-    echo "✓ Python3 available"
-    echo "Scanning for environment variables to expand..."
+    # Track if we need to make replacements
+    needs_replacement=false
 
-    # Use Python to safely expand environment variables in JSON
-    python3 << 'EOFPYTHON'
-import json
-import os
-import re
-import sys
+    # Get current environment variables
+    while IFS='=' read -r env_var env_value; do
+        # Skip if env_var is empty
+        [ -z "$env_var" ] && continue
 
-config_path = "/home/node/.claude.json"
-
-try:
-    # Read the current config
-    with open(config_path, "r") as f:
-        content = f.read()
-
-    # Store original content for backup
-    original_content = content
-
-    # Track which variables we find and expand
-    expanded_vars = []
-    found_vars = []
-
-    # Function to replace environment variables
-    def replace_env_var(match):
-        var_name = match.group(1) if match.group(1) else match.group(2)
-        found_vars.append(var_name)
-        env_value = os.environ.get(var_name)
-        if env_value is not None:
-            expanded_vars.append(var_name)
-            # Properly escape the value for JSON
-            # For security, don't log the actual value
-            return json.dumps(env_value)[1:-1]  # Remove outer quotes from json.dumps
-        return match.group(0)  # Return original if env var not found
-
-    # Replace ${VAR_NAME} pattern
-    content = re.sub(r'\$\{([A-Z_][A-Z0-9_]*)\}', replace_env_var, content)
-
-    # Replace $VAR_NAME pattern (but be careful not to match in the middle of strings)
-    content = re.sub(r'\$([A-Z_][A-Z0-9_]*)', replace_env_var, content)
-
-    # Report what was found
-    if found_vars:
-        print(f"Found {len(set(found_vars))} environment variable(s) in config:")
-        for var in set(found_vars):
-            if var in expanded_vars:
-                print(f"  ✓ ${var} -> expanded")
-            else:
-                print(f"  ✗ ${var} -> not set in environment (keeping as-is)")
-
-    # Check if any changes were made
-    if content != original_content:
-        # Validate that the result is still valid JSON
-        try:
-            json.loads(content)
-        except json.JSONDecodeError as e:
-            print(f"Error: Environment variable expansion resulted in invalid JSON: {e}", file=sys.stderr)
-            print("This may indicate a problem with special characters in environment variable values", file=sys.stderr)
-            sys.exit(1)
-
-        # Create backup
-        backup_path = f"{config_path}.backup"
-        try:
-            with open(backup_path, "w") as f:
-                f.write(original_content)
-            print(f"✓ Backup saved to: {backup_path}")
-        except Exception as e:
-            print(f"Warning: Could not create backup: {e}", file=sys.stderr)
-
-        # Write expanded content
-        with open(config_path, "w") as f:
-            f.write(content)
-
-        print(f"✓ Configuration file updated with expanded environment variables")
-    else:
-        print("No environment variables found to expand")
-
-except FileNotFoundError:
-    print(f"Config file not found: {config_path}")
-except PermissionError as e:
-    print(f"Error: Permission denied when accessing config file: {e}", file=sys.stderr)
-    print(f"Check file permissions: ls -la {config_path}", file=sys.stderr)
-    sys.exit(1)
-except Exception as e:
-    print(f"Error expanding environment variables: {e}", file=sys.stderr)
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
-
-EOFPYTHON
-
-    echo "=== Environment Variable Expansion Complete ==="
-    echo ""
-}
-
-# Run environment variable expansion on startup
-expand_env_vars
-
-# Start a background process to watch for changes to .claude.json and expand variables
-# This ensures that even if users add MCP servers after container startup, variables get expanded
-watch_and_expand() {
-    local config_file="/home/node/.claude.json"
-    local last_mtime=""
-    local first_run=true
-
-    echo "Starting background watcher for .claude.json changes..."
-
-    # Initialize last_mtime if file exists
-    if [ -f "$config_file" ]; then
-        last_mtime=$(stat -c %Y "$config_file" 2>/dev/null || stat -f %m "$config_file" 2>/dev/null)
-    fi
-
-    while true; do
-        sleep 5  # Check every 5 seconds
-
-        if [ -f "$config_file" ]; then
-            # Get the modification time of the file
-            current_mtime=$(stat -c %Y "$config_file" 2>/dev/null || stat -f %m "$config_file" 2>/dev/null)
-
-            # If modification time changed, expand variables
-            if [ -n "$current_mtime" ] && [ "$current_mtime" != "$last_mtime" ]; then
-                # Don't expand on the very first run if we initialized from existing file
-                # (we already did that at startup), but DO expand on any subsequent changes
-                if [ "$first_run" = true ] && [ -n "$last_mtime" ]; then
-                    first_run=false
-                else
-                    echo ""
-                    echo "=== Detected change in .claude.json ==="
-                    expand_env_vars
-                    first_run=false
-                fi
-                last_mtime="$current_mtime"
-            fi
-        else
-            # File doesn't exist yet, wait for it to be created
-            if [ -n "$last_mtime" ]; then
-                # File was deleted
-                last_mtime=""
-            fi
+        # Check if this environment variable is referenced in the config file
+        if echo "$config_content" | grep -q "\$$env_var"; then
+            needs_replacement=true
+            break
         fi
-    done
+    done < <(env)
+
+    # If replacements are needed, perform them
+    if [ "$needs_replacement" = true ]; then
+        # Create backup with timestamp
+        timestamp=$(date +%s)
+        backup_file="${config_file}.${timestamp}"
+        cp "$config_file" "$backup_file"
+        echo "Created backup: $backup_file"
+
+        # Perform replacements
+        new_content="$config_content"
+        while IFS='=' read -r env_var env_value; do
+            # Skip if env_var is empty
+            [ -z "$env_var" ] && continue
+
+            # Check if this environment variable is referenced in the config file
+            if echo "$new_content" | grep -q "\$$env_var"; then
+                # Escape special characters in the replacement value for sed
+                escaped_value=$(echo "$env_value" | sed 's/[&/\]/\\&/g')
+                new_content=$(echo "$new_content" | sed "s/\$$env_var/$escaped_value/g")
+                echo "Replaced \$$env_var with actual value"
+            fi
+        done < <(env)
+
+        # Write the modified content back to the config file
+        echo "$new_content" > "$config_file"
+
+        echo ""
+        echo "=========================================="
+        echo "Configuration file has been updated: $config_file"
+        echo "A restart is required to pick up the changes"
+        echo "=========================================="
+        echo ""
+    fi
 }
 
-# Start the watcher in the background
-watch_and_expand &
+# Process environment variables in the configuration file
+process_env_vars "$CONFIG_FILE"
 
-# Execute the container's original command (starts Claude Code)
+# Execute the main command (passed as arguments to this script)
 exec "$@"

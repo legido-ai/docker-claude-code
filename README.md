@@ -246,24 +246,23 @@ volumes:
 
 Add a GitHub MCP server using GitHub App authentication.
 
-**⚠️ Important**: Environment variables in MCP configuration must be expanded with actual values, not variable names. Use the provided setup script for proper configuration:
+**Automatic Environment Variable Substitution**: The container's `entrypoint.sh` automatically replaces environment variable references (like `$GITHUB_APP_ID`) with their actual values on startup. Simply add your configuration with variable references, then restart the container:
 
 ```bash
-# Recommended: Using the setup script (handles environment variable expansion correctly)
-docker exec claude-code bash /path/to/utils/setup-mcp-github.sh
+# Add MCP configuration with environment variable references
+docker exec claude-code claude mcp add-json github '{"command":"docker","args":["run","-i","--rm","-e","GITHUB_APP_ID=$GITHUB_APP_ID","-e","GITHUB_PRIVATE_KEY=$GITHUB_PRIVATE_KEY","-e","GITHUB_INSTALLATION_ID=$GITHUB_INSTALLATION_ID","ghcr.io/legido-ai/mcp-github-app-auth:latest"],"trust":true,"timeout":30000}'
 
-# Or copy the script into the container first
-docker cp utils/setup-mcp-github.sh claude-code:/tmp/
-docker exec claude-code bash /tmp/setup-mcp-github.sh
+# Restart the container to apply environment variable substitution
+docker restart claude-code
 ```
 
-The setup script (`utils/setup-mcp-github.sh`) is included in this repository and automatically:
-- Validates required environment variables are set
-- Expands environment variable values into the configuration
-- Creates a backup of your existing configuration
-- Updates the MCP server configuration properly
+The entrypoint script automatically:
+- Detects environment variable references (e.g., `$GITHUB_APP_ID`, `$GITHUB_PRIVATE_KEY`)
+- Creates a timestamped backup of the original configuration
+- Replaces all references with actual values from the container environment
+- Notifies you that the substitution was performed
 
-**Why the script is needed**: The `claude mcp add-json` command does not expand environment variables like `$GITHUB_APP_ID`. If you try to use variable names directly, they will be passed as literal strings (e.g., `$GITHUB_APP_ID` instead of `1957234`), causing authentication to fail with errors like "Could not parse the provided public key."
+**Alternative**: You can still use the setup script (`utils/setup-mcp-github.sh`) which validates and expands variables in a single step without requiring a restart.
 
 #### Example: n8n MCP Server
 
@@ -357,9 +356,9 @@ docker exec claude-code claude mcp get github
 
 **"Could not parse the provided public key" error (GitHub MCP)?**
 This error occurs when environment variables in the MCP configuration are not properly expanded:
-- **Problem**: Using `$GITHUB_PRIVATE_KEY` in the configuration instead of the actual private key value
-- **Solution**: Use the `utils/setup-mcp-github.sh` script which properly expands environment variables
-- **Root cause**: The `claude mcp add-json` command treats environment variable references as literal strings
+- **Problem**: Using `$GITHUB_PRIVATE_KEY` in the configuration but container wasn't restarted
+- **Solution**: After adding MCP configuration with `docker exec claude mcp add-json`, restart the container with `docker restart claude-code` to apply environment variable substitution
+- **Alternative**: Use the `utils/setup-mcp-github.sh` script which expands variables immediately without requiring restart
 - To verify: Run `docker exec claude-code cat /home/node/.claude.json` and check if you see `$GITHUB_APP_ID` or the actual value like `1957234`
 
 **n8n MCP connection fails?**
