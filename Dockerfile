@@ -1,4 +1,4 @@
-FROM node:alpine
+FROM node:24.22.1-alpine
 
 # Argument for the Docker group ID, which we will pass in during the build
 ARG DOCKER_GID
